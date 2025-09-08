@@ -1,6 +1,9 @@
 const express = require('express');
 const app = express();
 
+app.use(require('cors')());     // optional but useful
+app.use(express.json());        // <-- required to read JSON bodies
+
 const PORT = process.env.PORT || 8080;
 
 // --- middleware ---
