@@ -3,6 +3,7 @@ name: CI/CD - mistgo-api to ACR & App Service
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: mistgo-api
