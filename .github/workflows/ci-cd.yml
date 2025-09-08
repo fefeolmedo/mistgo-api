@@ -41,9 +41,14 @@ jobs:
         with:
           app-name: ${{ env.WEBAPP_NAME }}
           images: ${{ env.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+   
+      - name: Debug resolved env
+        run: echo "WEBAPP_NAME=${WEBAPP_NAME}"
 
       - name: Hit health endpoint (smoke test)
         run: |
           echo "Waiting 30s for rollout..."
           sleep 30
-          curl -f https://${{ env.WEBAPP_NAME }}.azurewebsites.net/health
+          URL="https://${WEBAPP_NAME}.azurewebsites.net/health"
+          echo "Curling: $URL"
+          curl -f "$URL"
