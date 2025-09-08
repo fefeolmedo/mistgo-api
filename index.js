@@ -11,7 +11,7 @@ const pool = new Pool({
 });
 
 // health (app)
-app.get('/health', (_, res) => res.json({ ok: "ci-cd-test" }));
+app.get('/health', (_, res) => res.json({ ok: "ci-cd-test My Dad Is Gay" }));
 
 // health (db)
 app.get('/db-ping', async (_, res) => {
