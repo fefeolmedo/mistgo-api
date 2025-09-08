@@ -36,43 +36,56 @@ app.get('/db-ping', async (_, res) => {
   }
 });
 
-// register
+// REGISTER: requires username, email, password
 app.post('/register', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
-
+  const { username, email, password } = req.body || {};
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Missing username, email, or password' });
+  }
   try {
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
-      'INSERT INTO users(email, password_hash) VALUES($1, $2)',
-      [email, hash]
+      'INSERT INTO users(username, email, password_hash) VALUES($1,$2,$3)',
+      [username, email, hash]
     );
     return res.status(201).json({ success: true });
   } catch (e) {
-    // duplicate email protection (Postgres unique constraint)
     if (e.code === '23505') {
-      return res.status(409).json({ error: 'Email already registered' });
+      const msg = (e.detail || '').includes('username') ? 'Username already taken'
+                : (e.detail || '').includes('email')    ? 'Email already registered'
+                : 'Duplicate value';
+      return res.status(409).json({ error: msg });
     }
     console.error('Register error:', e.message);
     return res.status(500).json({ error: 'Registration failed' });
   }
 });
 
-// login
+// LOGIN: accept identifier via username OR email
 app.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
+  const { username, email, identifier, password } = req.body || {};
+  const id = identifier || username || email;
+  if (!id || !password) return res.status(400).json({ error: 'Missing username/email or password' });
 
   try {
-    const r = await pool.query('SELECT id, email, password_hash FROM users WHERE email=$1', [email]);
+    const looksEmail = id.includes('@');
+    const sql = looksEmail
+      ? 'SELECT id, username, email, password_hash FROM users WHERE email=$1'
+      : 'SELECT id, username, email, password_hash FROM users WHERE username=$1';
+
+    const r = await pool.query(sql, [id]);
     if (r.rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
 
     const user = r.rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    return res.json({ token });
+    const token = jwt.sign(
+      { id: user.id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    return res.json({ token, username: user.username, email: user.email });
   } catch (e) {
     console.error('Login error:', e.message);
     return res.status(500).json({ error: 'Login failed' });
