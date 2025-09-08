@@ -38,8 +38,10 @@ app.get('/db-ping', async (_, res) => {
 
 // register
 app.post('/register', async (req, res) => {
+  console.log('REGISTER BODY:', req.body);
   const { username, email, password } = req.body || {};
-  if (!username || !email || !password) return res.status(400).json({ error: 'Missing username, email, or password' });
+  if (!username || !email || !password) 
+    return res.status(400).json({ error: 'Missing username, email, or password' });
 
   try {
     const hash = await bcrypt.hash(password, 10);
