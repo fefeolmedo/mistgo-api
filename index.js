@@ -84,4 +84,106 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// ---- simple auth middleware (require a valid JWT) ----
+function requireAuth(req, res, next) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Missing token' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // { id, username, email }
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// ---- ITEMS CRUD ----
+
+// Create
+app.post('/items', requireAuth, async (req, res) => {
+  const { name, description } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  try {
+    const r = await pool.query(
+      `INSERT INTO items(name, description, owner_id)
+       VALUES($1,$2,$3) RETURNING id, name, description, owner_id, created_at`,
+      [name, description || null, req.user.id]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (e) {
+    console.error('Create item error:', e.message);
+    res.status(500).json({ error: 'Failed to create item' });
+  }
+});
+
+// List (current user’s items)
+app.get('/items', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, description, owner_id, created_at
+       FROM items
+       WHERE owner_id = $1
+       ORDER BY id DESC`,
+      [req.user.id]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    console.error('List items error:', e.message);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+});
+
+// Get by id
+app.get('/items/:id', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, name, description, owner_id, created_at
+       FROM items WHERE id=$1 AND owner_id=$2`,
+      [req.params.id, req.user.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    console.error('Get item error:', e.message);
+    res.status(500).json({ error: 'Failed to fetch item' });
+  }
+});
+
+// Update
+app.put('/items/:id', requireAuth, async (req, res) => {
+  const { name, description } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  try {
+    const r = await pool.query(
+      `UPDATE items
+         SET name=$1, description=$2
+       WHERE id=$3 AND owner_id=$4
+       RETURNING id, name, description, owner_id, created_at`,
+      [name, description || null, req.params.id, req.user.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    console.error('Update item error:', e.message);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// Delete
+app.delete('/items/:id', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `DELETE FROM items WHERE id=$1 AND owner_id=$2 RETURNING id`,
+      [req.params.id, req.user.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Delete item error:', e.message);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
 app.listen(PORT, () => console.log('API on :' + PORT));
+
