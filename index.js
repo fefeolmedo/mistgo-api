@@ -120,9 +120,15 @@ app.post('/items', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
       `INSERT INTO items (name, description, price, quantity, owner_id)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, description, price, quantity,
-                 to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS createdAt`,
+   VALUES ($1, $2, $3, $4, $5)
+   RETURNING
+     id,
+     name,
+     description,
+     COALESCE(price, 0)    AS price,
+     COALESCE(quantity, 0) AS quantity,
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created`,
       [name, description, p, q, req.user.id]
     );
     res.status(201).json(r.rows[0]);
@@ -136,11 +142,18 @@ app.post('/items', requireAuth, async (req, res) => {
 app.get('/items', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, name, description, price, quantity,
-          to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
-     FROM items
-    WHERE id=$1 AND owner_id=$2`,
-      [req.params.id, req.user.id]
+      `SELECT
+     id,
+     name,
+     description,
+     COALESCE(price, 0)    AS price,
+     COALESCE(quantity, 0) AS quantity,
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created
+   FROM items
+   WHERE owner_id = $1
+   ORDER BY created_at DESC`,
+      [req.user.id]
     );
     res.json(r.rows);
   } catch (e) {
@@ -153,8 +166,16 @@ app.get('/items', requireAuth, async (req, res) => {
 app.get('/items/:id', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, name, description, owner_id, created_at
-       FROM items WHERE id=$1 AND owner_id=$2`,
+      `SELECT
+     id,
+     name,
+     description,
+     COALESCE(price, 0)    AS price,
+     COALESCE(quantity, 0) AS quantity,
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created
+   FROM items
+   WHERE id=$1 AND owner_id=$2`,
       [req.params.id, req.user.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
