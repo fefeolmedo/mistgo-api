@@ -108,15 +108,22 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Create
+// Create item
 app.post('/items', requireAuth, async (req, res) => {
-  const { name, description } = req.body || {};
+  const { name, description = '', price, quantity } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name is required' });
+
+  // coerce to numbers with sane defaults
+  const p = Number.isFinite(+price) ? Number(price) : 0;
+  const q = Number.isFinite(+quantity) ? parseInt(quantity, 10) : 0;
+
   try {
     const r = await pool.query(
-      `INSERT INTO items(name, description, owner_id)
-       VALUES($1,$2,$3) RETURNING id, name, description, owner_id, created_at`,
-      [name, description || null, req.user.id]
+      `INSERT INTO items (name, description, price, quantity, owner_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, description, price, quantity,
+                 to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at`,
+      [name, description, p, q, req.user.id]
     );
     res.status(201).json(r.rows[0]);
   } catch (e) {
@@ -130,10 +137,10 @@ app.get('/items', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, name, description, price, quantity,
-              to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created
+              to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
        FROM items
-       WHERE owner_id=$1
-       ORDER BY id DESC`,
+       WHERE owner_id = $1
+       ORDER BY created_at DESC`,
       [req.user.id]
     );
     res.json(r.rows);
