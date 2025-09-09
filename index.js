@@ -40,7 +40,7 @@ app.get('/db-ping', async (_, res) => {
 app.post('/register', async (req, res) => {
   console.log('REGISTER BODY:', req.body);
   const { username, email, password } = req.body || {};
-  if (!username || !email || !password) 
+  if (!username || !email || !password)
     return res.status(400).json({ error: 'Missing username, email, or password' });
 
   try {
@@ -136,12 +136,12 @@ app.post('/items', requireAuth, async (req, res) => {
 app.get('/items', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
-  `SELECT id, name, description, price, quantity,
+      `SELECT id, name, description, price, quantity,
           to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
      FROM items
     WHERE id=$1 AND owner_id=$2`,
-  [req.params.id, req.user.id]
-);
+      [req.params.id, req.user.id]
+    );
     res.json(r.rows);
   } catch (e) {
     console.error('List items error:', e.message);
@@ -171,13 +171,13 @@ app.put('/items/:id', requireAuth, async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name is required' });
   try {
     const r = await pool.query(
-  `UPDATE items
+      `UPDATE items
       SET name=$1, description=$2
     WHERE id=$3 AND owner_id=$4
     RETURNING id, name, description, price, quantity,
               to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at`,
-  [name, description || null, req.params.id, req.user.id]
-);
+      [name, description || null, req.params.id, req.user.id]
+    );
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(r.rows[0]);
   } catch (e) {
