@@ -83,6 +83,56 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ error: 'Login failed' });
   }
 });
+// ---- auth helper (reads Bearer token, optional) ----
+function getUserIdFromReq(req) {
+  try {
+    const h = req.headers.authorization || "";
+    const t = h.startsWith("Bearer ") ? h.slice(7) : null;
+    if (!t) return null;
+    const p = jwt.verify(t, JWT_SECRET);
+    return p.id; // from /login token payload
+  } catch { return null; }
+}
+
+// ---- ITEMS CRUD ----
+
+// list items (yours only if logged in; otherwise all)
+app.get('/items', async (req, res) => {
+  try {
+    const uid = getUserIdFromReq(req);
+    const sql = uid
+      ? `SELECT id,name,description,price,quantity,created_at
+         FROM items WHERE owner_id=$1 ORDER BY id DESC`
+      : `SELECT id,name,description,price,quantity,created_at
+         FROM items ORDER BY id DESC`;
+    const args = uid ? [uid] : [];
+    const r = await pool.query(sql, args);
+    res.json(r.rows);
+  } catch (e) {
+    console.error('Items list error:', e.message);
+    res.status(500).json({ error: 'Failed to load items' });
+  }
+});
+
+// create item
+app.post('/items', async (req, res) => {
+  try {
+    const uid = getUserIdFromReq(req); // optional; will set NULL if not logged in
+    const { name, description, price, quantity } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'Missing name' });
+
+    const r = await pool.query(
+      `INSERT INTO items(name, description, price, quantity, owner_id)
+       VALUES($1,$2,COALESCE($3,0),COALESCE($4,0),$5)
+       RETURNING id,name,description,price,quantity,created_at`,
+      [name, description ?? '', price, quantity, uid]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (e) {
+    console.error('Items create error:', e.message);
+    res.status(500).json({ error: 'Failed to add item' });
+  }
+});
 
 // ---- simple auth middleware (require a valid JWT) ----
 function requireAuth(req, res, next) {
