@@ -128,13 +128,14 @@ app.post('/items', requireAuth, async (req, res) => {
 // List (current user’s items)
 app.get('/items', requireAuth, async (req, res) => {
   try {
-const r = await pool.query(
-  `INSERT INTO items(name, description, price, quantity, owner_id)
-   VALUES($1,$2,COALESCE($3,0),COALESCE($4,0),$5)
-   RETURNING id,name,description,price,quantity,
-             to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at`,
-  [name, description ?? '', price, quantity, uid]
-);
+    const r = await pool.query(
+      `SELECT id, name, description, price, quantity,
+              to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created
+       FROM items
+       WHERE owner_id=$1
+       ORDER BY id DESC`,
+      [req.user.id]
+    );
     res.json(r.rows);
   } catch (e) {
     console.error('List items error:', e.message);
